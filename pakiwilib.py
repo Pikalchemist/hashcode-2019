@@ -43,6 +43,7 @@ class Result(object):
     OUTPUT_EXTENSION = '.out'
     OUTPUT_METADATA = 'meta.yml'
     OUTPUT_DATAFILE = 'data.pickle'
+    OUTPUT_RESULTFILE = 'result.txt'
 
     def __init__(self, set_):
         self.set = set_
@@ -83,6 +84,7 @@ class Result(object):
         # create the output folder for this results
         self.foldername = foldername(index)
         self.datafilename = os.path.join(self.foldername, self.OUTPUT_DATAFILE)
+        self.resfilename = os.path.join(self.foldername, self.OUTPUT_RESULTFILE)
         os.mkdir(self.foldername)
 
         # save metadata
@@ -235,8 +237,16 @@ class Slideshow(Result):
         self.slides = slides
         # self.slides_array = np.array([(slide[0], -1) if len(slide) == 1 else slide for slide in slides])
 
+    def export_res(self):
+        f = open(self.resfilename, 'w')
+        f.write('%i\n' % len(self.slides))
+        for s in self.slides:
+            l = ' '.join(str(i) for i in s)
+            f.write('%s\n' % l)
+
     def _save_data(self):
         pickle.dump(self.slides, open(self.datafilename, 'wb'))
+        self.export_res()
 
     @classmethod
     def _load_data(cls, datafile, set_):
