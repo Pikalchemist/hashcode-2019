@@ -11,7 +11,7 @@ class UnimplementedMethod(Exception):
 
 class Set(object):
     INPUT_FOLDER = 'inputs'
-    INPUT_EXTENSION = '.in'
+    INPUT_EXTENSION = '.txt'
 
     def __init__(self, setname):
         self.setname = setname
@@ -59,7 +59,6 @@ class Result(object):
             if os.path.isdir(filename):
                 with open(os.path.join(filename, cls.OUTPUT_METADATA), 'r') as stream:
                     meta = yaml.load(stream)
-                print(meta)
                 score = meta.get('score', -1)
                 date = meta.get('date', 0)
                 results.append((f, score, date))
@@ -139,4 +138,44 @@ class SampleResult(Result):
     def _load_data(cls, datafile, set_):
         data = pickle.load(open(datafile, 'rb'))
         result = cls(set_, data)
+        return result
+
+
+class Photoset(Set):
+    HORIZONTAL = 0
+    VERTICAL = 1
+
+    def _processData(self, data):
+        numbers = int(data[0])
+        self.images = []
+        for image_data in data[1:]:
+            image_data = image_data.replace('\n', '').split(' ')
+            vertical = (image_data[0] == 'V')
+            tags = set(image_data[2:])
+            id_ = len(self.images)
+            self.images.append((id_, vertical, tags))
+
+    def score(self, result):
+        return self.raw_score(result.slides)
+
+    def raw_score(self, data):
+        return int(np.sum(data))
+
+
+class Slideshow(Result):
+    def __init__(self, set_, slides):
+        """
+        Args:
+            slides ([(), (), ..., ()]): List of tuples
+        """
+        super(Slideshow, self).__init__(set_)
+        self.slides = slides
+
+    def _save_data(self):
+        pickle.dump(self.slides, open(self.datafilename, 'wb'))
+
+    @classmethod
+    def _load_data(cls, datafile, set_):
+        slides = pickle.load(open(datafile, 'rb'))
+        result = cls(set_, slides)
         return result
