@@ -31,7 +31,10 @@ class Set(object):
     def score(self, result):
         raise UnimplementedMethod('Please implement score() in a subclass of Set')
 
-    def raw_score(self, result):
+    def raw_score(self, data):
+        raise UnimplementedMethod('Please implement score() in a subclass of Set')
+
+    def raw_check(self, data):
         raise UnimplementedMethod('Please implement score() in a subclass of Set')
 
 
@@ -155,11 +158,71 @@ class Photoset(Set):
             id_ = len(self.images)
             self.images.append((id_, vertical, tags))
 
+        self.array = np.array(self.images)
+
     def score(self, result):
         return self.raw_score(result.slides)
 
-    def raw_score(self, data):
-        return int(np.sum(data))
+    def raw_score(self, slides):
+        slides_array = np.array([(slide[0], -1) if len(slide) == 1 else slide for slide in slides])
+        ids = slides_array.flatten()
+        ids = ids[ids >= 0]
+
+        # Check if all images are only used once
+        s = np.sort(ids, axis=None)
+        duplicate_ids = s[:-1][s[1:] == s[:-1]]
+        if len(duplicate_ids) > 0:
+            raise Exception('The image id(s) {} are used more than once!'.format(duplicate_ids))
+
+        # Check vertical/horizontal
+        one_images = slides_array[slides_array[:, 1] == -1][:, 0]
+        two_images = slides_array[slides_array[:, 1] > -1].flatten()
+        if np.sum(self.array[one_images][:, 1]) > 0:  # should all be horizontals
+            s = self.array[one_images]
+            ids = s[s[:, 1] == self.VERTICAL][:, 0]
+            raise Exception('The image id(s) {} are verticals and used in a 1-image slide!'.format(ids))
+        if np.sum(self.array[two_images][:, 1]) < len(two_images):  # should all be verticals
+            s = self.array[two_images]
+            ids = s[s[:, 1] == self.HORIZONTAL][:, 0]
+            raise Exception('The image id(s) {} are horizontals and used in a 2-image slide!'.format(ids))
+
+        # Score
+        tags = [self.array[slide[0], 2] if len(slide) == 1 else (self.array[slide[0], 2] | self.array[slide[1], 2])
+                for slide in slides]
+        score_total = 0
+        for i in range(len(slides) - 1):
+            current_slide = slides[i]
+            next_slide = slides[i + 1]
+            current_tags = tags[i]
+            next_tags = tags[i + 1]
+            score = min(len(current_tags & next_tags),
+                        len(current_tags - next_tags),
+                        len(next_tags - current_tags))
+            score_total += score
+        return score_total
+
+    def raw_check(self, slides):
+        slides_array = np.array([(slide[0], -1) if len(slide) == 1 else slide for slide in slides])
+        ids = slides_array.flatten()
+        ids = ids[ids >= 0]
+
+        # Check if all images are only used once
+        s = np.sort(ids, axis=None)
+        duplicate_ids = s[:-1][s[1:] == s[:-1]]
+        if len(duplicate_ids) > 0:
+            raise Exception('The image id(s) {} are used more than once!'.format(duplicate_ids))
+
+        # Check vertical/horizontal
+        one_images = slides_array[slides_array[:, 1] == -1][:, 0]
+        two_images = slides_array[slides_array[:, 1] > -1].flatten()
+        if np.sum(self.verticals[one_images][:, 1]) > 0:  # should all be horizontals
+            s = self.verticals[one_images]
+            ids = s[s[:, 1] == self.VERTICAL][:, 0]
+            raise Exception('The image id(s) {} are verticals and used in a 1-image slide!'.format(ids))
+        if np.sum(self.verticals[two_images][:, 1]) < len(two_images):  # should all be verticals
+            s = self.verticals[two_images]
+            ids = s[s[:, 1] == self.HORIZONTAL][:, 0]
+            raise Exception('The image id(s) {} are horizontals and used in a 2-image slide!'.format(ids))
 
 
 class Slideshow(Result):
@@ -170,6 +233,7 @@ class Slideshow(Result):
         """
         super(Slideshow, self).__init__(set_)
         self.slides = slides
+        # self.slides_array = np.array([(slide[0], -1) if len(slide) == 1 else slide for slide in slides])
 
     def _save_data(self):
         pickle.dump(self.slides, open(self.datafilename, 'wb'))
